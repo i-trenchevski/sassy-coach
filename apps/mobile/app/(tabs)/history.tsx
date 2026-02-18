@@ -1,0 +1,90 @@
+import { useState } from "react";
+import { View, Text, FlatList, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { HistoryItem } from "@/components/HistoryItem";
+import { useMissions } from "@/hooks/useMissions";
+import { colors, spacing, typography } from "@/constants/theme";
+
+export default function HistoryScreen() {
+  const { missions, loading } = useMissions();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const sortedMissions = [...missions].sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  );
+
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.center}>
+          <Text style={styles.emptyText}>Loading...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>History</Text>
+      </View>
+
+      {sortedMissions.length === 0 ? (
+        <View style={styles.center}>
+          <Text style={styles.emptyEmoji}>📋</Text>
+          <Text style={styles.emptyText}>
+            Complete your first mission to start building history.
+          </Text>
+        </View>
+      ) : (
+        <FlatList
+          data={sortedMissions}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={styles.list}
+          renderItem={({ item }) => (
+            <HistoryItem
+              mission={item}
+              expanded={expandedId === item.id}
+              onToggle={() =>
+                setExpandedId((prev) => (prev === item.id ? null : item.id))
+              }
+            />
+          )}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: colors.background,
+  },
+  header: {
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+  },
+  title: {
+    ...typography.heading,
+    fontSize: 22,
+  },
+  list: {
+    padding: spacing.lg,
+    paddingTop: spacing.sm,
+  },
+  center: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    padding: spacing.xl,
+  },
+  emptyEmoji: {
+    fontSize: 48,
+    marginBottom: spacing.md,
+  },
+  emptyText: {
+    ...typography.body,
+    textAlign: "center",
+  },
+});
