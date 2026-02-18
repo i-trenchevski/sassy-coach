@@ -29,3 +29,46 @@ export interface User {
   lastCompletedDate: string | null;
   lastGeneratedDate: string | null;
 }
+
+// --- API request/response types ---
+
+export interface GenerateMissionRequest {
+  userId: string;
+  goal: Goal;
+  tone: Tone;
+}
+
+export interface GenerateMissionResponse {
+  mission: DailyMission;
+  fromCache: boolean;
+}
+
+export interface CompleteMissionRequest {
+  missionId: string;
+  reflectionAnswer: string | null;
+}
+
+export interface CompleteMissionResponse {
+  mission: DailyMission;
+  streakCount: number;
+  lastCompletedDate: string;
+}
+
+export interface RegisterUserRequest {
+  id: string;
+  goal: Goal;
+  tone: Tone;
+  timezone: string;
+}
+
+export interface RegisterUserResponse {
+  user: User;
+}
+
+export interface GetUserResponse {
+  user: User;
+}
+
+export interface GetHistoryResponse {
+  missions: DailyMission[];
+}

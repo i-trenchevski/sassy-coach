@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView } from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import type { Goal } from "@sassy-coach/shared";
 import { MissionCard } from "@/components/MissionCard";
 import { StreakBadge } from "@/components/StreakBadge";
@@ -15,10 +16,11 @@ import { getToday } from "@/utils/dates";
 import { colors, spacing, typography } from "@/constants/theme";
 
 export default function HomeScreen() {
-  const { user, loading: userLoading, updateUser } = useUser();
+  const { user, loading: userLoading, reload: reloadUser, updateUser } = useUser();
   const {
     todayMission,
     loading: missionsLoading,
+    reload: reloadMissions,
     generateTodayMission,
     completeMission,
   } = useMissions();
@@ -28,12 +30,26 @@ export default function HomeScreen() {
   const [showOverlay, setShowOverlay] = useState(false);
   const [showMilestone, setShowMilestone] = useState(false);
   const [milestoneCount, setMilestoneCount] = useState<number>(0);
+  const [generating, setGenerating] = useState(false);
+
+  // Reload data from storage every time screen gains focus (fixes stale state after reset)
+  useFocusEffect(
+    useCallback(() => {
+      reloadUser();
+      reloadMissions();
+    }, [reloadUser, reloadMissions])
+  );
 
   const loading = userLoading || missionsLoading;
 
   const handleGenerateMission = useCallback(async () => {
     if (!user || !selectedGoal) return;
-    await generateTodayMission(user.id, selectedGoal, user.tone);
+    setGenerating(true);
+    try {
+      await generateTodayMission(user.id, selectedGoal, user.tone);
+    } finally {
+      setGenerating(false);
+    }
   }, [user, selectedGoal, generateTodayMission]);
 
   const handleComplete = useCallback(async () => {
@@ -45,7 +61,7 @@ export default function HomeScreen() {
     );
     const milestone = getMilestone(newStreak);
 
-    await completeMission(reflectionText || null);
+    await completeMission(todayMission!.id, reflectionText || null);
     await updateUser({
       streakCount: newStreak,
       lastCompletedDate: getToday(),
@@ -97,10 +113,16 @@ export default function HomeScreen() {
             </View>
             <View style={styles.buttonContainer}>
               <Button
-                title="Generate Mission"
+                title={generating ? "Generating..." : "Generate Mission"}
                 onPress={handleGenerateMission}
-                disabled={!selectedGoal && !user.goal}
+                disabled={generating || (!selectedGoal && !user.goal)}
               />
+              {generating && (
+                <ActivityIndicator
+                  color={colors.accent}
+                  style={styles.spinner}
+                />
+              )}
             </View>
           </>
         ) : (
@@ -186,6 +208,9 @@ const styles = StyleSheet.create({
   },
   buttonContainer: {
     marginTop: spacing.lg,
+  },
+  spinner: {
+    marginTop: spacing.md,
   },
   doneContainer: {
     marginTop: spacing.lg,

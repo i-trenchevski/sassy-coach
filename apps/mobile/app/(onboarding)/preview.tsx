@@ -1,6 +1,9 @@
-import { View, Text, StyleSheet } from "react-native";
+import { useState, useEffect, useRef } from "react";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
+import * as Crypto from "expo-crypto";
 import type { Goal, Tone, User } from "@sassy-coach/shared";
+import type { DailyMission } from "@sassy-coach/shared";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { MissionPreview } from "@/components/MissionPreview";
 import { Button } from "@/components/Button";
@@ -8,6 +11,7 @@ import { colors, spacing, typography } from "@/constants/theme";
 import { pickMission } from "@/constants/mockMissions";
 import { saveUser, saveMissions, setOnboardingComplete } from "@/utils/storage";
 import { getToday } from "@/utils/dates";
+import { api } from "@/utils/api";
 
 export default function PreviewScreen() {
   const router = useRouter();
@@ -16,43 +20,91 @@ export default function PreviewScreen() {
   const typedGoal = goal as Goal;
   const typedTone = tone as Tone;
 
-  const template = pickMission(typedGoal, []);
-  const previewMission = {
-    task: template.task,
-    sass: template.sass[typedTone],
-    reflectionQuestion: template.reflectionQuestion,
-  };
+  const [mission, setMission] = useState<DailyMission | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [starting, setStarting] = useState(false);
+
+  // Stable refs so the effect doesn't re-run
+  const userRef = useRef<User | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function generate() {
+      const today = getToday();
+      const userId = Crypto.randomUUID();
+
+      const user: User = {
+        id: userId,
+        email: null,
+        goal: typedGoal,
+        tone: typedTone,
+        isPremium: false,
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        streakCount: 0,
+        lastCompletedDate: null,
+        lastGeneratedDate: today,
+      };
+      userRef.current = user;
+
+      // Register + generate in one go
+      let generated: DailyMission;
+      try {
+        await api.register({
+          id: userId,
+          goal: typedGoal,
+          tone: typedTone,
+          timezone: user.timezone,
+        });
+        const { mission: remoteMission } = await api.generateMission({
+          userId,
+          goal: typedGoal,
+          tone: typedTone,
+        });
+        generated = remoteMission;
+      } catch {
+        // API unreachable — fall back to mock mission
+        const template = pickMission(typedGoal, []);
+        generated = {
+          id: `mission-${today}-${userId}`,
+          userId,
+          date: today,
+          task: template.task,
+          sass: template.sass[typedTone],
+          reflectionQuestion: template.reflectionQuestion,
+          completed: false,
+          reflectionAnswer: null,
+        };
+      }
+
+      if (!cancelled) {
+        setMission(generated);
+        setLoading(false);
+      }
+    }
+
+    generate();
+    return () => {
+      cancelled = true;
+    };
+  }, [typedGoal, typedTone]);
 
   const handleStart = async () => {
-    const today = getToday();
-    const user: User = {
-      id: "local-user-001",
-      email: null,
-      goal: typedGoal,
-      tone: typedTone,
-      isPremium: false,
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      streakCount: 0,
-      lastCompletedDate: null,
-      lastGeneratedDate: today,
-    };
-
-    const firstMission = {
-      id: `mission-${today}`,
-      userId: user.id,
-      date: today,
-      task: previewMission.task,
-      sass: previewMission.sass,
-      reflectionQuestion: previewMission.reflectionQuestion,
-      completed: false,
-      reflectionAnswer: null,
-    };
-
-    await saveUser(user);
-    await saveMissions([firstMission]);
-    await setOnboardingComplete();
-    router.replace("/(tabs)/home");
+    if (!mission || !userRef.current) return;
+    setStarting(true);
+    try {
+      await saveUser(userRef.current);
+      await saveMissions([mission]);
+      await setOnboardingComplete();
+      router.replace("/(tabs)/home");
+    } finally {
+      setStarting(false);
+    }
   };
+
+  const previewData = mission
+    ? { task: mission.task, sass: mission.sass, reflectionQuestion: mission.reflectionQuestion }
+    : null;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -65,11 +117,22 @@ export default function PreviewScreen() {
       </View>
 
       <View style={styles.preview}>
-        <MissionPreview mission={previewMission} />
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={colors.accent} />
+            <Text style={styles.loadingText}>Generating your mission...</Text>
+          </View>
+        ) : (
+          previewData && <MissionPreview mission={previewData} />
+        )}
       </View>
 
       <View style={styles.footer}>
-        <Button title="Let's Go 🚀" onPress={handleStart} />
+        <Button
+          title={starting ? "Setting up..." : "Let's Go 🚀"}
+          onPress={handleStart}
+          disabled={loading || starting}
+        />
       </View>
     </SafeAreaView>
   );
@@ -101,6 +164,14 @@ const styles = StyleSheet.create({
   preview: {
     flex: 1,
     justifyContent: "center",
+  },
+  loadingContainer: {
+    alignItems: "center",
+    gap: spacing.md,
+  },
+  loadingText: {
+    ...typography.body,
+    color: colors.textMuted,
   },
   footer: {
     paddingVertical: spacing.lg,
