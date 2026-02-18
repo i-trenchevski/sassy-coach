@@ -1,0 +1,13 @@
+{
+  "name": "sassy-coach",
+  "private": true,
+  "scripts": {
+    "mobile": "pnpm --filter @sassy-coach/mobile",
+    "api": "pnpm --filter @sassy-coach/api",
+    "dev:api": "pnpm --filter @sassy-coach/api dev",
+    "dev:mobile": "pnpm --filter @sassy-coach/mobile start"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
