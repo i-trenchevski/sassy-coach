@@ -1,10 +1,12 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, StyleSheet, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import type { Goal } from "@sassy-coach/shared";
 import { MissionCard } from "@/components/MissionCard";
 import { StreakBadge } from "@/components/StreakBadge";
 import { CompletionOverlay } from "@/components/CompletionOverlay";
 import { MilestoneBanner } from "@/components/MilestoneBanner";
+import { GoalSelector } from "@/components/GoalSelector";
 import { Button } from "@/components/Button";
 import { useUser } from "@/hooks/useUser";
 import { useMissions } from "@/hooks/useMissions";
@@ -21,6 +23,7 @@ export default function HomeScreen() {
     completeMission,
   } = useMissions();
 
+  const [selectedGoal, setSelectedGoal] = useState<Goal | null>(null);
   const [reflectionText, setReflectionText] = useState("");
   const [showOverlay, setShowOverlay] = useState(false);
   const [showMilestone, setShowMilestone] = useState(false);
@@ -28,11 +31,10 @@ export default function HomeScreen() {
 
   const loading = userLoading || missionsLoading;
 
-  useEffect(() => {
-    if (user && !todayMission && !loading) {
-      generateTodayMission(user.id, user.goal, user.tone);
-    }
-  }, [user, todayMission, loading]);
+  const handleGenerateMission = useCallback(async () => {
+    if (!user || !selectedGoal) return;
+    await generateTodayMission(user.id, selectedGoal, user.tone);
+  }, [user, selectedGoal, generateTodayMission]);
 
   const handleComplete = useCallback(async () => {
     if (!user) return;
@@ -67,6 +69,8 @@ export default function HomeScreen() {
     );
   }
 
+  const needsGoalPick = !todayMission;
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
@@ -79,7 +83,27 @@ export default function HomeScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
-        {todayMission ? (
+        {needsGoalPick ? (
+          <>
+            <Text style={styles.pickTitle}>What's today's focus?</Text>
+            <Text style={styles.pickSubtitle}>
+              Pick a goal for today's mission
+            </Text>
+            <View style={styles.goalPicker}>
+              <GoalSelector
+                selected={selectedGoal ?? user.goal}
+                onSelect={setSelectedGoal}
+              />
+            </View>
+            <View style={styles.buttonContainer}>
+              <Button
+                title="Generate Mission"
+                onPress={handleGenerateMission}
+                disabled={!selectedGoal && !user.goal}
+              />
+            </View>
+          </>
+        ) : (
           <>
             <MissionCard
               mission={todayMission}
@@ -106,10 +130,6 @@ export default function HomeScreen() {
               </View>
             )}
           </>
-        ) : (
-          <View style={styles.center}>
-            <Text style={styles.loadingText}>Generating your mission...</Text>
-          </View>
         )}
       </ScrollView>
 
@@ -151,6 +171,18 @@ const styles = StyleSheet.create({
   scrollContent: {
     padding: spacing.lg,
     paddingTop: spacing.sm,
+  },
+  pickTitle: {
+    ...typography.heading,
+    fontSize: 24,
+    marginBottom: spacing.xs,
+  },
+  pickSubtitle: {
+    ...typography.body,
+    marginBottom: spacing.lg,
+  },
+  goalPicker: {
+    marginBottom: spacing.sm,
   },
   buttonContainer: {
     marginTop: spacing.lg,
