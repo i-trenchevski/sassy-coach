@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity, RefreshControl } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import type { Goal } from "@sassy-coach/shared";
@@ -34,6 +34,7 @@ export default function HomeScreen() {
   const [milestoneCount, setMilestoneCount] = useState<number>(0);
   const [generating, setGenerating] = useState(false);
   const [rerolling, setRerolling] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Reload data from storage every time screen gains focus (fixes stale state after reset)
   useFocusEffect(
@@ -65,6 +66,12 @@ export default function HomeScreen() {
       setRerolling(false);
     }
   }, [user, selectedGoal, todayMission, rerollsRemaining, rerollMission]);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await Promise.all([reloadUser(), reloadMissions()]);
+    setRefreshing(false);
+  }, [reloadUser, reloadMissions]);
 
   const handleComplete = useCallback(async () => {
     if (!user) return;
@@ -116,6 +123,13 @@ export default function HomeScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={colors.accent}
+          />
+        }
       >
         {needsGoalPick ? (
           <>

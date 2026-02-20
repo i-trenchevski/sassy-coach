@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, Pressable, Alert, StyleSheet, ScrollView } from "react-native";
+import { View, Text, Pressable, Alert, StyleSheet, ScrollView, Switch } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GoalSelector } from "@/components/GoalSelector";
@@ -7,7 +7,8 @@ import { ToneSelector } from "@/components/ToneSelector";
 import { Button } from "@/components/Button";
 import { useUser } from "@/hooks/useUser";
 import { useAuthContext } from "@/contexts/AuthContext";
-import { clearAll } from "@/utils/storage";
+import { clearAll, getNotificationPrefs, saveNotificationPrefs } from "@/utils/storage";
+import { scheduleDailyReminder, cancelDailyReminder } from "@/utils/notifications";
 import { api } from "@/utils/api";
 import { colors, spacing, typography, borderRadius } from "@/constants/theme";
 import type { Goal, Tone } from "@sassy-coach/shared";
@@ -18,8 +19,20 @@ export default function SettingsScreen() {
   const { session, signOut } = useAuthContext();
   const [editingGoal, setEditingGoal] = useState(false);
   const [editingTone, setEditingTone] = useState(false);
+  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifHour, setNotifHour] = useState(9);
+  const [notifMinute, setNotifMinute] = useState(0);
 
-  useFocusEffect(useCallback(() => { reload(); }, [reload]));
+  useFocusEffect(
+    useCallback(() => {
+      reload();
+      getNotificationPrefs().then(({ enabled, hour, minute }) => {
+        setNotifEnabled(enabled);
+        setNotifHour(hour);
+        setNotifMinute(minute);
+      });
+    }, [reload])
+  );
 
   if (loading || !user) {
     return (
@@ -39,6 +52,32 @@ export default function SettingsScreen() {
   const handleToneChange = (tone: Tone) => {
     updateUser({ tone });
     setEditingTone(false);
+  };
+
+  const handleNotifToggle = async (value: boolean) => {
+    if (value) {
+      const granted = await scheduleDailyReminder(notifHour, notifMinute);
+      if (!granted) {
+        Alert.alert(
+          "Permission Denied",
+          "Enable notifications in your device settings to receive daily reminders."
+        );
+        return;
+      }
+    } else {
+      await cancelDailyReminder();
+    }
+    setNotifEnabled(value);
+    await saveNotificationPrefs(value, notifHour, notifMinute);
+  };
+
+  const handleTimeChange = async (newHour: number, newMinute: number) => {
+    setNotifHour(newHour);
+    setNotifMinute(newMinute);
+    await saveNotificationPrefs(notifEnabled, newHour, newMinute);
+    if (notifEnabled) {
+      await scheduleDailyReminder(newHour, newMinute);
+    }
   };
 
   const handleReset = () => {
@@ -120,6 +159,53 @@ export default function SettingsScreen() {
               {session?.user?.email ?? "—"}
             </Text>
           </View>
+        </View>
+
+        <View style={styles.notifSection}>
+          <Text style={styles.statsTitle}>Notifications</Text>
+          <View style={styles.statRow}>
+            <Text style={styles.statLabel}>Daily Reminder</Text>
+            <Switch
+              value={notifEnabled}
+              onValueChange={handleNotifToggle}
+              trackColor={{ false: colors.border, true: colors.accent }}
+              thumbColor={colors.textPrimary}
+            />
+          </View>
+          {notifEnabled && (
+            <View style={[styles.statRow, styles.timeRow]}>
+              <Text style={styles.statLabel}>Time</Text>
+              <View style={styles.timePicker}>
+                <Pressable
+                  style={styles.timeBtn}
+                  onPress={() => handleTimeChange((notifHour - 1 + 24) % 24, notifMinute)}
+                >
+                  <Text style={styles.timeBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.timeValue}>{String(notifHour).padStart(2, "0")}</Text>
+                <Pressable
+                  style={styles.timeBtn}
+                  onPress={() => handleTimeChange((notifHour + 1) % 24, notifMinute)}
+                >
+                  <Text style={styles.timeBtnText}>+</Text>
+                </Pressable>
+                <Text style={styles.timeSep}>:</Text>
+                <Pressable
+                  style={styles.timeBtn}
+                  onPress={() => handleTimeChange(notifHour, (notifMinute - 15 + 60) % 60)}
+                >
+                  <Text style={styles.timeBtnText}>−</Text>
+                </Pressable>
+                <Text style={styles.timeValue}>{String(notifMinute).padStart(2, "0")}</Text>
+                <Pressable
+                  style={styles.timeBtn}
+                  onPress={() => handleTimeChange(notifHour, (notifMinute + 15) % 60)}
+                >
+                  <Text style={styles.timeBtnText}>+</Text>
+                </Pressable>
+              </View>
+            </View>
+          )}
         </View>
 
         <View style={styles.resetSection}>
@@ -226,6 +312,47 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surface,
     borderRadius: borderRadius.md,
     padding: spacing.md,
+  },
+  notifSection: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+    gap: spacing.sm,
+  },
+  timeRow: {
+    marginTop: spacing.xs,
+  },
+  timePicker: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  timeBtn: {
+    width: 28,
+    height: 28,
+    backgroundColor: colors.surfaceLight,
+    borderRadius: borderRadius.sm,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  timeBtnText: {
+    color: colors.textPrimary,
+    fontSize: 18,
+    lineHeight: 22,
+    fontWeight: "600",
+  },
+  timeValue: {
+    ...typography.body,
+    color: colors.textPrimary,
+    fontWeight: "600",
+    minWidth: 24,
+    textAlign: "center",
+  },
+  timeSep: {
+    ...typography.body,
+    color: colors.textSecondary,
+    fontWeight: "600",
   },
   resetSection: {
     marginTop: spacing.xl,
