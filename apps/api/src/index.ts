@@ -4,6 +4,7 @@ import cors from "cors";
 import userRoutes from "./routes/users";
 import missionRoutes from "./routes/missions";
 import { errorHandler } from "./middleware/errorHandler";
+import { requireAuth } from "./middleware/auth";
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -15,6 +16,8 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+// All routes below require authentication
+app.use(requireAuth);
 app.use(userRoutes);
 app.use(missionRoutes);
 

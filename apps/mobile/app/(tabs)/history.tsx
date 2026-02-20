@@ -1,16 +1,19 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, FlatList, StyleSheet } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useFocusEffect } from "expo-router";
 import { HistoryItem } from "@/components/HistoryItem";
 import { useMissions } from "@/hooks/useMissions";
 import { colors, spacing, typography } from "@/constants/theme";
 
 export default function HistoryScreen() {
-  const { missions, loading } = useMissions();
+  const { missions, loading, reload } = useMissions();
+
+  useFocusEffect(useCallback(() => { reload(); }, [reload]));
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const sortedMissions = [...missions].sort(
-    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  const sortedMissions = [...missions].sort((a, b) =>
+    b.date.localeCompare(a.date)
   );
 
   if (loading) {

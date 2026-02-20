@@ -3,23 +3,45 @@ import type {
   GenerateMissionResponse,
   CompleteMissionRequest,
   CompleteMissionResponse,
+  RerollMissionRequest,
+  RerollMissionResponse,
   RegisterUserRequest,
   RegisterUserResponse,
+  UpdateUserRequest,
+  UpdateUserResponse,
   GetUserResponse,
   GetHistoryResponse,
 } from "@sassy-coach/shared";
+import { supabase } from "@/lib/supabase";
 
 // TODO: Update this to your deployed API URL for production
 const API_BASE = __DEV__
   ? "http://192.168.2.4:3000" // Local dev — your laptop's WiFi IP
   : "https://your-api.com";
 
+async function getAuthToken(): Promise<string | null> {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session?.access_token ?? null;
+}
+
 async function apiCall<T>(
   path: string,
   options: RequestInit = {}
 ): Promise<T> {
+  const token = await getAuthToken();
+
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+
   const response = await fetch(`${API_BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers,
     ...options,
   });
 
@@ -41,14 +63,28 @@ export const api = {
     });
   },
 
-  getUser(userId: string): Promise<GetUserResponse> {
-    return apiCall(`/user/${userId}`);
+  getUser(): Promise<GetUserResponse> {
+    return apiCall("/user");
+  },
+
+  updateUser(data: UpdateUserRequest): Promise<UpdateUserResponse> {
+    return apiCall("/user", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    });
   },
 
   generateMission(
     data: GenerateMissionRequest
   ): Promise<GenerateMissionResponse> {
     return apiCall("/generate-mission", {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  },
+
+  rerollMission(data: RerollMissionRequest): Promise<RerollMissionResponse> {
+    return apiCall("/reroll-mission", {
       method: "POST",
       body: JSON.stringify(data),
     });
@@ -63,7 +99,7 @@ export const api = {
     });
   },
 
-  getHistory(userId: string, limit = 30): Promise<GetHistoryResponse> {
-    return apiCall(`/history/${userId}?limit=${limit}`);
+  getHistory(limit = 30): Promise<GetHistoryResponse> {
+    return apiCall(`/history?limit=${limit}`);
   },
 };

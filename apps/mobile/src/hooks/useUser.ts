@@ -12,18 +12,18 @@ export function useUser() {
     const cached = await getUser();
     if (cached) {
       setUser(cached);
-
-      // Try to sync from API
-      try {
-        const { user: remote } = await api.getUser(cached.id);
-        setUser(remote);
-        await saveUser(remote);
-      } catch {
-        // API unreachable — cached data is fine
-      }
-    } else {
-      setUser(null);
     }
+
+    // Always try to sync from API (restores data after re-login when cache is empty)
+    try {
+      const { user: remote } = await api.getUser();
+      setUser(remote);
+      await saveUser(remote);
+    } catch {
+      // API unreachable — use cached data if available
+      if (!cached) setUser(null);
+    }
+
     setLoading(false);
   }, []);
 
@@ -38,6 +38,13 @@ export function useUser() {
       saveUser(updated);
       return updated;
     });
+
+    // Sync to API
+    try {
+      await api.updateUser(updates);
+    } catch {
+      // API unreachable — local update is fine, will sync later
+    }
   }, []);
 
   return { user, loading, reload, updateUser, setUser };

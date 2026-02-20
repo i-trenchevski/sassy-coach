@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "expo-router";
 import type { Goal } from "@sassy-coach/shared";
@@ -13,15 +13,18 @@ import { useUser } from "@/hooks/useUser";
 import { useMissions } from "@/hooks/useMissions";
 import { computeStreak, getMilestone } from "@/utils/streak";
 import { getToday } from "@/utils/dates";
-import { colors, spacing, typography } from "@/constants/theme";
+import { Ionicons } from "@expo/vector-icons";
+import { colors, spacing, typography, borderRadius } from "@/constants/theme";
 
 export default function HomeScreen() {
   const { user, loading: userLoading, reload: reloadUser, updateUser } = useUser();
   const {
     todayMission,
+    rerollsRemaining,
     loading: missionsLoading,
     reload: reloadMissions,
     generateTodayMission,
+    rerollMission,
     completeMission,
   } = useMissions();
 
@@ -31,6 +34,7 @@ export default function HomeScreen() {
   const [showMilestone, setShowMilestone] = useState(false);
   const [milestoneCount, setMilestoneCount] = useState<number>(0);
   const [generating, setGenerating] = useState(false);
+  const [rerolling, setRerolling] = useState(false);
 
   // Reload data from storage every time screen gains focus (fixes stale state after reset)
   useFocusEffect(
@@ -46,11 +50,22 @@ export default function HomeScreen() {
     if (!user || !selectedGoal) return;
     setGenerating(true);
     try {
-      await generateTodayMission(user.id, selectedGoal, user.tone);
+      await generateTodayMission(selectedGoal, user.tone);
     } finally {
       setGenerating(false);
     }
   }, [user, selectedGoal, generateTodayMission]);
+
+  const handleReroll = useCallback(async () => {
+    if (!user || rerollsRemaining <= 0) return;
+    setRerolling(true);
+    try {
+      const goal = todayMission?.task ? selectedGoal ?? user.goal : user.goal;
+      await rerollMission(goal, user.tone);
+    } finally {
+      setRerolling(false);
+    }
+  }, [user, selectedGoal, todayMission, rerollsRemaining, rerollMission]);
 
   const handleComplete = useCallback(async () => {
     if (!user) return;
@@ -139,9 +154,39 @@ export default function HomeScreen() {
             />
 
             {!todayMission.completed && (
-              <View style={styles.buttonContainer}>
-                <Button title="Complete Mission ✓" onPress={handleComplete} />
-              </View>
+              <>
+                <TouchableOpacity
+                  style={[
+                    styles.rerollButton,
+                    (rerollsRemaining <= 0 || rerolling) && styles.rerollButtonDisabled,
+                  ]}
+                  onPress={handleReroll}
+                  disabled={rerollsRemaining <= 0 || rerolling}
+                  activeOpacity={0.7}
+                >
+                  <Ionicons
+                    name="refresh"
+                    size={18}
+                    color={rerollsRemaining <= 0 ? colors.textMuted : colors.accent}
+                  />
+                  <Text
+                    style={[
+                      styles.rerollText,
+                      rerollsRemaining <= 0 && styles.rerollTextDisabled,
+                    ]}
+                  >
+                    {rerolling
+                      ? "Rerolling..."
+                      : rerollsRemaining <= 0
+                        ? "No rerolls left"
+                        : `Reroll mission (${rerollsRemaining} left)`}
+                  </Text>
+                </TouchableOpacity>
+
+                <View style={styles.buttonContainer}>
+                  <Button title="Complete Mission ✓" onPress={handleComplete} />
+                </View>
+              </>
             )}
 
             {todayMission.completed && (
@@ -227,5 +272,30 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     ...typography.body,
+  },
+  rerollButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: spacing.xs,
+    marginTop: spacing.md,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.accent,
+    alignSelf: "center",
+  },
+  rerollButtonDisabled: {
+    borderColor: colors.border,
+    opacity: 0.5,
+  },
+  rerollText: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: colors.accent,
+  },
+  rerollTextDisabled: {
+    color: colors.textMuted,
   },
 });

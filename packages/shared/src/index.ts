@@ -16,10 +16,12 @@ export interface DailyMission {
   reflectionQuestion: string;
   completed: boolean;
   reflectionAnswer: string | null;
+  rerollCount: number;
 }
 
 export interface User {
   id: string;
+  authId: string | null;
   email: string | null;
   goal: Goal;
   tone: Tone;
@@ -33,7 +35,6 @@ export interface User {
 // --- API request/response types ---
 
 export interface GenerateMissionRequest {
-  userId: string;
   goal: Goal;
   tone: Tone;
 }
@@ -55,10 +56,19 @@ export interface CompleteMissionResponse {
 }
 
 export interface RegisterUserRequest {
-  id: string;
   goal: Goal;
   tone: Tone;
   timezone: string;
+}
+
+export interface UpdateUserRequest {
+  goal?: Goal;
+  tone?: Tone;
+  timezone?: string;
+}
+
+export interface UpdateUserResponse {
+  user: User;
 }
 
 export interface RegisterUserResponse {
@@ -67,6 +77,16 @@ export interface RegisterUserResponse {
 
 export interface GetUserResponse {
   user: User;
+}
+
+export interface RerollMissionRequest {
+  goal: Goal;
+  tone: Tone;
+}
+
+export interface RerollMissionResponse {
+  mission: DailyMission;
+  rerollsRemaining: number;
 }
 
 export interface GetHistoryResponse {

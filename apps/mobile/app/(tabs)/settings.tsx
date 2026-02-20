@@ -1,20 +1,24 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { View, Text, Pressable, Alert, StyleSheet, ScrollView } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { GoalSelector } from "@/components/GoalSelector";
 import { ToneSelector } from "@/components/ToneSelector";
 import { Button } from "@/components/Button";
 import { useUser } from "@/hooks/useUser";
+import { useAuthContext } from "@/contexts/AuthContext";
 import { clearAll } from "@/utils/storage";
 import { colors, spacing, typography, borderRadius } from "@/constants/theme";
 import type { Goal, Tone } from "@sassy-coach/shared";
 
 export default function SettingsScreen() {
   const router = useRouter();
-  const { user, loading, updateUser } = useUser();
+  const { user, loading, reload, updateUser } = useUser();
+  const { session, signOut } = useAuthContext();
   const [editingGoal, setEditingGoal] = useState(false);
   const [editingTone, setEditingTone] = useState(false);
+
+  useFocusEffect(useCallback(() => { reload(); }, [reload]));
 
   if (loading || !user) {
     return (
@@ -101,10 +105,41 @@ export default function SettingsScreen() {
           </View>
         </View>
 
+        <View style={styles.accountSection}>
+          <Text style={styles.statsTitle}>Account</Text>
+          <View style={styles.statRow}>
+            <Text style={styles.statLabel}>Email</Text>
+            <Text style={styles.statValue}>
+              {session?.user?.email ?? "—"}
+            </Text>
+          </View>
+        </View>
+
         <View style={styles.resetSection}>
           <Button
             title="Reset All Data"
             onPress={handleReset}
+            variant="secondary"
+          />
+        </View>
+
+        <View style={styles.logoutSection}>
+          <Button
+            title="Log Out"
+            onPress={() => {
+              Alert.alert("Log Out", "Are you sure you want to log out?", [
+                { text: "Cancel", style: "cancel" },
+                {
+                  text: "Log Out",
+                  style: "destructive",
+                  onPress: async () => {
+                    await clearAll();
+                    await signOut();
+                    router.replace("/");
+                  },
+                },
+              ]);
+            }}
             variant="secondary"
           />
         </View>
@@ -179,8 +214,17 @@ const styles = StyleSheet.create({
     color: colors.accentSecondary,
     fontWeight: "600",
   },
+  accountSection: {
+    marginTop: spacing.lg,
+    backgroundColor: colors.surface,
+    borderRadius: borderRadius.md,
+    padding: spacing.md,
+  },
   resetSection: {
     marginTop: spacing.xl,
+  },
+  logoutSection: {
+    marginTop: spacing.md,
   },
   version: {
     ...typography.caption,

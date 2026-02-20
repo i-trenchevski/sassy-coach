@@ -3,6 +3,7 @@ import type { User, DailyMission } from "@sassy-coach/shared";
 export function mapUserRow(row: Record<string, unknown>): User {
   return {
     id: row.id as string,
+    authId: (row.auth_id as string) ?? null,
     email: row.email as string | null,
     goal: row.goal as User["goal"],
     tone: row.tone as User["tone"],
@@ -24,5 +25,6 @@ export function mapMissionRow(row: Record<string, unknown>): DailyMission {
     reflectionQuestion: row.reflection_question as string,
     completed: row.completed as boolean,
     reflectionAnswer: row.reflection_answer as string | null,
+    rerollCount: (row.reroll_count as number) ?? 0,
   };
 }

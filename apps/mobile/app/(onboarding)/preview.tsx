@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import * as Crypto from "expo-crypto";
 import type { Goal, Tone, User } from "@sassy-coach/shared";
 import type { DailyMission } from "@sassy-coach/shared";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -24,7 +23,6 @@ export default function PreviewScreen() {
   const [loading, setLoading] = useState(true);
   const [starting, setStarting] = useState(false);
 
-  // Stable refs so the effect doesn't re-run
   const userRef = useRef<User | null>(null);
 
   useEffect(() => {
@@ -32,32 +30,39 @@ export default function PreviewScreen() {
 
     async function generate() {
       const today = getToday();
-      const userId = Crypto.randomUUID();
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-      const user: User = {
-        id: userId,
+      // Register user with API (links Supabase Auth to app user)
+      let registeredUser: User | null = null;
+      try {
+        const { user } = await api.register({
+          goal: typedGoal,
+          tone: typedTone,
+          timezone,
+        });
+        registeredUser = user;
+      } catch {
+        // API unreachable — create a local-only user
+      }
+
+      const user: User = registeredUser ?? {
+        id: "local",
+        authId: null,
         email: null,
         goal: typedGoal,
         tone: typedTone,
         isPremium: false,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone,
         streakCount: 0,
         lastCompletedDate: null,
         lastGeneratedDate: today,
       };
       userRef.current = user;
 
-      // Register + generate in one go
+      // Generate first mission
       let generated: DailyMission;
       try {
-        await api.register({
-          id: userId,
-          goal: typedGoal,
-          tone: typedTone,
-          timezone: user.timezone,
-        });
         const { mission: remoteMission } = await api.generateMission({
-          userId,
           goal: typedGoal,
           tone: typedTone,
         });
@@ -66,14 +71,15 @@ export default function PreviewScreen() {
         // API unreachable — fall back to mock mission
         const template = pickMission(typedGoal, []);
         generated = {
-          id: `mission-${today}-${userId}`,
-          userId,
+          id: `mission-${today}-fallback`,
+          userId: user.id,
           date: today,
           task: template.task,
           sass: template.sass[typedTone],
           reflectionQuestion: template.reflectionQuestion,
           completed: false,
           reflectionAnswer: null,
+          rerollCount: 0,
         };
       }
 

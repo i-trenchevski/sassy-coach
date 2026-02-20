@@ -5,6 +5,8 @@ import { getToday } from "@/utils/dates";
 import { pickMission } from "@/constants/mockMissions";
 import { api } from "@/utils/api";
 
+const MAX_REROLLS = 2; // initial + 2 rerolls = 3 missions max per day
+
 export function useMissions() {
   const [missions, setMissions] = useState<DailyMission[]>([]);
   const [loading, setLoading] = useState(true);
@@ -12,7 +14,21 @@ export function useMissions() {
   const reload = useCallback(async () => {
     setLoading(true);
     const stored = await getMissions();
-    setMissions(stored);
+    if (stored.length > 0) {
+      setMissions(stored);
+    }
+
+    // Always try to sync from API (restores history after re-login when cache is empty)
+    try {
+      const { missions: remote } = await api.getHistory();
+      if (remote.length > 0) {
+        setMissions(remote);
+        await saveMissions(remote);
+      }
+    } catch {
+      // API unreachable — use cached data if available
+    }
+
     setLoading(false);
   }, []);
 
@@ -20,10 +36,21 @@ export function useMissions() {
     reload();
   }, [reload]);
 
-  const todayMission = missions.find((m) => m.date === getToday()) ?? null;
+  // Match by local getToday(), or fall back to the most recent incomplete mission
+  // (handles date format mismatch between mobile dev mode and API)
+  const todayMission =
+    missions.find((m) => m.date === getToday()) ??
+    [...missions]
+      .sort((a, b) => b.date.localeCompare(a.date))
+      .find((m) => !m.completed) ??
+    null;
+
+  const rerollsRemaining = todayMission
+    ? MAX_REROLLS - (todayMission.rerollCount ?? 0)
+    : MAX_REROLLS;
 
   const generateTodayMission = useCallback(
-    async (userId: string, goal: Goal, tone: Tone) => {
+    async (goal: Goal, tone: Tone) => {
       const today = getToday();
       const existing = missions.find((m) => m.date === today);
       if (existing) return existing;
@@ -31,9 +58,8 @@ export function useMissions() {
       let mission: DailyMission;
 
       try {
-        // Try API first (AI-generated mission)
+        // Try API first (pool or AI-generated mission)
         const { mission: remoteMission } = await api.generateMission({
-          userId,
           goal,
           tone,
         });
@@ -43,14 +69,15 @@ export function useMissions() {
         const recentTasks = missions.slice(-7).map((m) => m.task);
         const template = pickMission(goal, recentTasks);
         mission = {
-          id: `mission-${today}-${userId}`,
-          userId,
+          id: `mission-${today}-fallback`,
+          userId: "local",
           date: today,
           task: template.task,
           sass: template.sass[tone],
           reflectionQuestion: template.reflectionQuestion,
           completed: false,
           reflectionAnswer: null,
+          rerollCount: 0,
         };
       }
 
@@ -62,10 +89,41 @@ export function useMissions() {
     [missions]
   );
 
+  const rerollMission = useCallback(
+    async (goal: Goal, tone: Tone) => {
+      if (!todayMission || rerollsRemaining <= 0) return;
+
+      let newMission: DailyMission;
+
+      try {
+        const { mission } = await api.rerollMission({ goal, tone });
+        newMission = mission;
+      } catch {
+        // Fallback to local mock generation
+        const recentTasks = missions.slice(-7).map((m) => m.task);
+        recentTasks.push(todayMission.task); // exclude current mission
+        const template = pickMission(goal, recentTasks);
+        newMission = {
+          ...todayMission,
+          task: template.task,
+          sass: template.sass[tone],
+          reflectionQuestion: template.reflectionQuestion,
+          rerollCount: (todayMission.rerollCount ?? 0) + 1,
+        };
+      }
+
+      const updated = missions.map((m) =>
+        m.id === todayMission.id ? newMission : m
+      );
+      setMissions(updated);
+      await saveMissions(updated);
+      return newMission;
+    },
+    [missions, todayMission, rerollsRemaining]
+  );
+
   const completeMission = useCallback(
     async (missionId: string, reflectionAnswer: string | null) => {
-      const today = getToday();
-
       try {
         await api.completeMission({ missionId, reflectionAnswer });
       } catch {
@@ -73,7 +131,7 @@ export function useMissions() {
       }
 
       const updated = missions.map((m) =>
-        m.date === today
+        m.id === missionId
           ? { ...m, completed: true, reflectionAnswer }
           : m
       );
@@ -86,9 +144,11 @@ export function useMissions() {
   return {
     missions,
     todayMission,
+    rerollsRemaining,
     loading,
     reload,
     generateTodayMission,
+    rerollMission,
     completeMission,
   };
 }
