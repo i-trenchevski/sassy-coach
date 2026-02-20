@@ -118,7 +118,8 @@ router.put(
         return;
       }
 
-      const { goal, tone, timezone } = req.body as UpdateUserRequest;
+      const { goal, tone, timezone, streakCount, lastCompletedDate } =
+        req.body as UpdateUserRequest;
 
       const updates: Record<string, unknown> = {
         updated_at: new Date().toISOString(),
@@ -126,6 +127,9 @@ router.put(
       if (goal !== undefined) updates.goal = goal;
       if (tone !== undefined) updates.tone = tone;
       if (timezone !== undefined) updates.timezone = timezone;
+      if (streakCount !== undefined) updates.streak_count = streakCount;
+      if (lastCompletedDate !== undefined)
+        updates.last_completed_date = lastCompletedDate;
 
       const { data, error } = await supabase
         .from("users")
@@ -135,6 +139,45 @@ router.put(
         .single();
 
       if (error) throw error;
+
+      res.json({ user: mapUserRow(data!) });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+router.post(
+  "/user/reset",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.appUserId;
+
+      if (!userId) {
+        res
+          .status(404)
+          .json({ error: "User not found", code: "USER_NOT_FOUND" });
+        return;
+      }
+
+      // Reset streak
+      const { data, error } = await supabase
+        .from("users")
+        .update({
+          streak_count: 0,
+          last_completed_date: null,
+          last_generated_date: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Delete all missions and seen pool entries for a clean slate
+      await supabase.from("daily_missions").delete().eq("user_id", userId);
+      await supabase.from("user_pool_missions").delete().eq("user_id", userId);
 
       res.json({ user: mapUserRow(data!) });
     } catch (err) {

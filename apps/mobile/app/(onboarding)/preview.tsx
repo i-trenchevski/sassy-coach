@@ -8,7 +8,7 @@ import { MissionPreview } from "@/components/MissionPreview";
 import { Button } from "@/components/Button";
 import { colors, spacing, typography } from "@/constants/theme";
 import { pickMission } from "@/constants/mockMissions";
-import { saveUser, saveMissions, setOnboardingComplete } from "@/utils/storage";
+import { saveUser, saveMissions, getMissions, setOnboardingComplete } from "@/utils/storage";
 import { getToday } from "@/utils/dates";
 import { api } from "@/utils/api";
 
@@ -100,7 +100,12 @@ export default function PreviewScreen() {
     setStarting(true);
     try {
       await saveUser(userRef.current);
-      await saveMissions([mission]);
+      // Append new mission to existing history (don't wipe returning user's data)
+      const existing = await getMissions();
+      const merged = existing.some((m) => m.id === mission.id)
+        ? existing
+        : [...existing, mission];
+      await saveMissions(merged);
       await setOnboardingComplete();
       router.replace("/(tabs)/home");
     } finally {

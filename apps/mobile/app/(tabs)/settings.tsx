@@ -8,6 +8,7 @@ import { Button } from "@/components/Button";
 import { useUser } from "@/hooks/useUser";
 import { useAuthContext } from "@/contexts/AuthContext";
 import { clearAll } from "@/utils/storage";
+import { api } from "@/utils/api";
 import { colors, spacing, typography, borderRadius } from "@/constants/theme";
 import type { Goal, Tone } from "@sassy-coach/shared";
 
@@ -50,6 +51,12 @@ export default function SettingsScreen() {
           text: "Reset",
           style: "destructive",
           onPress: async () => {
+            // Reset on the server first (wipes DB streak + missions)
+            try {
+              await api.resetUser();
+            } catch {
+              // API unreachable — proceed with local reset anyway
+            }
             await clearAll();
             router.replace("/");
           },

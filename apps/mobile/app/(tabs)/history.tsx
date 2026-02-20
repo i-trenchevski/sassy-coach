@@ -8,9 +8,16 @@ import { colors, spacing, typography } from "@/constants/theme";
 
 export default function HistoryScreen() {
   const { missions, loading, reload } = useMissions();
+  const [refreshing, setRefreshing] = useState(false);
 
   useFocusEffect(useCallback(() => { reload(); }, [reload]));
   const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await reload();
+    setRefreshing(false);
+  }, [reload]);
 
   const sortedMissions = [...missions].sort((a, b) =>
     b.date.localeCompare(a.date)
@@ -33,17 +40,28 @@ export default function HistoryScreen() {
       </View>
 
       {sortedMissions.length === 0 ? (
-        <View style={styles.center}>
-          <Text style={styles.emptyEmoji}>📋</Text>
-          <Text style={styles.emptyText}>
-            Complete your first mission to start building history.
-          </Text>
-        </View>
+        <FlatList
+          data={[]}
+          renderItem={() => null}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          contentContainerStyle={styles.center}
+          ListEmptyComponent={
+            <>
+              <Text style={styles.emptyEmoji}>📋</Text>
+              <Text style={styles.emptyText}>
+                Complete your first mission to start building history.
+              </Text>
+            </>
+          }
+        />
       ) : (
         <FlatList
           data={sortedMissions}
           keyExtractor={(item) => item.id}
           contentContainerStyle={styles.list}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
           renderItem={({ item }) => (
             <HistoryItem
               mission={item}

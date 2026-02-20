@@ -65,6 +65,8 @@ export interface UpdateUserRequest {
   goal?: Goal;
   tone?: Tone;
   timezone?: string;
+  streakCount?: number;
+  lastCompletedDate?: string | null;
 }
 
 export interface UpdateUserResponse {
@@ -91,4 +93,8 @@ export interface RerollMissionResponse {
 
 export interface GetHistoryResponse {
   missions: DailyMission[];
+}
+
+export interface ResetUserResponse {
+  user: User;
 }

@@ -121,7 +121,10 @@ router.post(
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("[generate-mission] DB insert failed:", error.message, error.details);
+        throw error;
+      }
 
       // Update user's lastGeneratedDate
       await supabase

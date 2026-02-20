@@ -36,8 +36,7 @@ export function useMissions() {
     reload();
   }, [reload]);
 
-  // Match by local getToday(), or fall back to the most recent incomplete mission
-  // (handles date format mismatch between mobile dev mode and API)
+  // Find today's mission: exact date match, or most recent incomplete mission
   const todayMission =
     missions.find((m) => m.date === getToday()) ??
     [...missions]
@@ -51,9 +50,11 @@ export function useMissions() {
 
   const generateTodayMission = useCallback(
     async (goal: Goal, tone: Tone) => {
-      const today = getToday();
-      const existing = missions.find((m) => m.date === today);
-      if (existing) return existing;
+      // If there's already an incomplete mission, return it
+      const incomplete = [...missions]
+        .sort((a, b) => b.date.localeCompare(a.date))
+        .find((m) => !m.completed);
+      if (incomplete) return incomplete;
 
       let mission: DailyMission;
 
@@ -66,6 +67,7 @@ export function useMissions() {
         mission = remoteMission;
       } catch {
         // Fallback to local mock generation
+        const today = getToday();
         const recentTasks = missions.slice(-7).map((m) => m.task);
         const template = pickMission(goal, recentTasks);
         mission = {
@@ -81,7 +83,9 @@ export function useMissions() {
         };
       }
 
-      const updated = [...missions, mission];
+      // Add mission, avoiding duplicates
+      const exists = missions.some((m) => m.id === mission.id);
+      const updated = exists ? missions : [...missions, mission];
       setMissions(updated);
       await saveMissions(updated);
       return mission;
@@ -123,9 +127,24 @@ export function useMissions() {
   );
 
   const completeMission = useCallback(
-    async (missionId: string, reflectionAnswer: string | null) => {
+    async (
+      missionId: string,
+      reflectionAnswer: string | null
+    ): Promise<{ streakCount: number; lastCompletedDate: string } | null> => {
+      let serverStreak: {
+        streakCount: number;
+        lastCompletedDate: string;
+      } | null = null;
+
       try {
-        await api.completeMission({ missionId, reflectionAnswer });
+        const response = await api.completeMission({
+          missionId,
+          reflectionAnswer,
+        });
+        serverStreak = {
+          streakCount: response.streakCount,
+          lastCompletedDate: response.lastCompletedDate,
+        };
       } catch {
         // API failed — still update locally
       }
@@ -137,6 +156,8 @@ export function useMissions() {
       );
       setMissions(updated);
       await saveMissions(updated);
+
+      return serverStreak;
     },
     [missions]
   );

@@ -12,7 +12,6 @@ import { Button } from "@/components/Button";
 import { useUser } from "@/hooks/useUser";
 import { useMissions } from "@/hooks/useMissions";
 import { computeStreak, getMilestone } from "@/utils/streak";
-import { getToday } from "@/utils/dates";
 import { Ionicons } from "@expo/vector-icons";
 import { colors, spacing, typography, borderRadius } from "@/constants/theme";
 
@@ -70,25 +69,29 @@ export default function HomeScreen() {
   const handleComplete = useCallback(async () => {
     if (!user) return;
 
-    const { newStreak } = computeStreak(
-      user.lastCompletedDate,
-      user.streakCount
+    const serverStreak = await completeMission(
+      todayMission!.id,
+      reflectionText || null
     );
+
+    // Use server streak as source of truth; fall back to local computation
+    const newStreak = serverStreak
+      ? serverStreak.streakCount
+      : computeStreak(user.lastCompletedDate, user.streakCount).newStreak;
+    const lastCompletedDate = serverStreak
+      ? serverStreak.lastCompletedDate
+      : user.lastCompletedDate;
+
+    await updateUser({ streakCount: newStreak, lastCompletedDate });
+
     const milestone = getMilestone(newStreak);
-
-    await completeMission(todayMission!.id, reflectionText || null);
-    await updateUser({
-      streakCount: newStreak,
-      lastCompletedDate: getToday(),
-    });
-
     setShowOverlay(true);
 
     if (milestone) {
       setMilestoneCount(milestone);
       setShowMilestone(true);
     }
-  }, [user, reflectionText, completeMission, updateUser]);
+  }, [user, reflectionText, completeMission, updateUser, todayMission]);
 
   if (loading || !user) {
     return (

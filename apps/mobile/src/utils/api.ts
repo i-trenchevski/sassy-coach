@@ -11,6 +11,7 @@ import type {
   UpdateUserResponse,
   GetUserResponse,
   GetHistoryResponse,
+  ResetUserResponse,
 } from "@sassy-coach/shared";
 import { supabase } from "@/lib/supabase";
 
@@ -101,5 +102,9 @@ export const api = {
 
   getHistory(limit = 30): Promise<GetHistoryResponse> {
     return apiCall(`/history?limit=${limit}`);
+  },
+
+  resetUser(): Promise<ResetUserResponse> {
+    return apiCall("/user/reset", { method: "POST" });
   },
 };

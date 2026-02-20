@@ -12,6 +12,8 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "@/components/Button";
 import { useAuthContext } from "@/contexts/AuthContext";
+import { api } from "@/utils/api";
+import { saveUser, saveMissions, setOnboardingComplete } from "@/utils/storage";
 import { colors, spacing, typography, borderRadius } from "@/constants/theme";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -35,6 +37,27 @@ export default function LoginScreen() {
 
     try {
       await signIn(email.trim(), password);
+
+      // Restore data for returning users (before navigating, while session is fresh)
+      try {
+        const { user } = await api.getUser();
+        if (user) {
+          await saveUser(user);
+          await setOnboardingComplete();
+          // Restore mission history
+          try {
+            const { missions } = await api.getHistory();
+            if (missions.length > 0) {
+              await saveMissions(missions);
+            }
+          } catch {
+            // History fetch failed — not critical
+          }
+        }
+      } catch {
+        // New user — will go through onboarding
+      }
+
       router.replace("/");
     } catch (err) {
       setError(

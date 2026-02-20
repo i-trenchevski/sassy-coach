@@ -37,6 +37,7 @@ export async function requireAuth(
     } = await supabase.auth.getUser(token);
 
     if (error || !user) {
+      console.error("[Auth] Token validation failed:", error?.message);
       res.status(401).json({ error: "Invalid or expired token" });
       return;
     }
@@ -45,18 +46,26 @@ export async function requireAuth(
     req.authEmail = user.email ?? undefined;
 
     // Look up the app user by auth_id
-    const { data: appUser } = await supabase
+    const { data: appUser, error: lookupError } = await supabase
       .from("users")
       .select("id")
       .eq("auth_id", user.id)
       .single();
 
+    if (lookupError && lookupError.code !== "PGRST116") {
+      // PGRST116 = no rows found (expected for new users), anything else is a real error
+      console.error("[Auth] User lookup error:", lookupError.message);
+    }
+
     if (appUser) {
       req.appUserId = appUser.id;
+    } else {
+      console.log(`[Auth] No app user found for auth_id=${user.id} (${req.method} ${req.path})`);
     }
 
     next();
-  } catch {
+  } catch (err) {
+    console.error("[Auth] Unexpected error:", err);
     res.status(401).json({ error: "Authentication failed" });
   }
 }
