@@ -15,10 +15,9 @@ import type {
 } from "@sassy-coach/shared";
 import { supabase } from "@/lib/supabase";
 
-// TODO: Update this to your deployed API URL for production
 const API_BASE = __DEV__
   ? "http://192.168.2.4:3000" // Local dev — your laptop's WiFi IP
-  : "https://your-api.com";
+  : "https://sassy-coach-test.up.railway.app";
 
 async function getAuthToken(): Promise<string | null> {
   const {
