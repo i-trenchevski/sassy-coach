@@ -47,10 +47,11 @@ export default function HomeScreen() {
   const loading = userLoading || missionsLoading;
 
   const handleGenerateMission = useCallback(async () => {
-    if (!user || !selectedGoal) return;
+    if (!user) return;
+    const goal = selectedGoal ?? user.goal;
     setGenerating(true);
     try {
-      await generateTodayMission(selectedGoal, user.tone);
+      await generateTodayMission(goal, user.tone);
     } finally {
       setGenerating(false);
     }

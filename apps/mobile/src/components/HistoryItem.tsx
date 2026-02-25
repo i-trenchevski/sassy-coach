@@ -17,11 +17,9 @@ export function HistoryItem({ mission, expanded, onToggle }: HistoryItemProps) {
           <Text style={styles.status}>
             {mission.completed ? "✓" : "✗"}
           </Text>
-          <View>
+          <View style={styles.taskContainer}>
             <Text style={styles.date}>{formatDate(mission.date)}</Text>
-            <Text style={styles.taskPreview} numberOfLines={1}>
-              {mission.task}
-            </Text>
+            <Text style={styles.taskPreview}>{mission.task}</Text>
           </View>
         </View>
         <Text style={styles.chevron}>{expanded ? "▲" : "▼"}</Text>
@@ -69,6 +67,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     flex: 1,
     gap: spacing.md,
+  },
+  taskContainer: {
+    flex: 1,
   },
   status: {
     fontSize: 18,
