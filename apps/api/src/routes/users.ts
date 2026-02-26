@@ -186,4 +186,32 @@ router.post(
   }
 );
 
+router.delete(
+  "/user",
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userId = req.appUserId;
+      const authUserId = req.authUserId;
+
+      if (!userId || !authUserId) {
+        res.status(404).json({ error: "User not found", code: "USER_NOT_FOUND" });
+        return;
+      }
+
+      // Delete all user data first
+      await supabase.from("daily_missions").delete().eq("user_id", userId);
+      await supabase.from("user_pool_missions").delete().eq("user_id", userId);
+      await supabase.from("users").delete().eq("id", userId);
+
+      // Delete the Supabase auth account
+      const { error } = await supabase.auth.admin.deleteUser(authUserId);
+      if (error) throw error;
+
+      res.json({ success: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 export default router;

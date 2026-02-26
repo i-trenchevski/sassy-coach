@@ -12,6 +12,7 @@ import type {
   GetUserResponse,
   GetHistoryResponse,
   ResetUserResponse,
+  DeleteUserResponse,
 } from "@sassy-coach/shared";
 import { supabase } from "@/lib/supabase";
 
@@ -105,5 +106,9 @@ export const api = {
 
   resetUser(): Promise<ResetUserResponse> {
     return apiCall("/user/reset", { method: "POST" });
+  },
+
+  deleteUser(): Promise<DeleteUserResponse> {
+    return apiCall("/user", { method: "DELETE" });
   },
 };

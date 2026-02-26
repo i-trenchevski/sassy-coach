@@ -98,3 +98,7 @@ export interface GetHistoryResponse {
 export interface ResetUserResponse {
   user: User;
 }
+
+export interface DeleteUserResponse {
+  success: boolean;
+}

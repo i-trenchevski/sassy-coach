@@ -80,6 +80,30 @@ export default function SettingsScreen() {
     }
   };
 
+  const handleDeleteAccount = () => {
+    Alert.alert(
+      "Delete Account",
+      "This will permanently delete your account and all your data. This cannot be undone.",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.deleteUser();
+            } catch {
+              // Continue with local cleanup even if API call fails
+            }
+            await clearAll();
+            await signOut();
+            router.replace("/");
+          },
+        },
+      ]
+    );
+  };
+
   const handleReset = () => {
     Alert.alert(
       "Reset All Data",
@@ -237,6 +261,14 @@ export default function SettingsScreen() {
           />
         </View>
 
+        <View style={styles.deleteSection}>
+          <Button
+            title="Delete Account"
+            onPress={handleDeleteAccount}
+            variant="secondary"
+          />
+        </View>
+
         <Text style={styles.version}>Sassy Coach v1.0.0</Text>
       </ScrollView>
     </SafeAreaView>
@@ -358,6 +390,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
   },
   logoutSection: {
+    marginTop: spacing.md,
+  },
+  deleteSection: {
     marginTop: spacing.md,
   },
   version: {
